@@ -1,0 +1,14 @@
+{
+    "dispatch_rule": {
+        "rule": {
+            "dispatchRuleIndividual": {
+                "roomPrefix": "investor-call-"
+            }
+        },
+        "roomConfig": {
+            "agents": [{
+                "agentName": "blackkeyx-advisor"
+            }]
+        }
+    }
+}
