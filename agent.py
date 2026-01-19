@@ -20,6 +20,9 @@ load_dotenv(".env.local")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
+# Module-level dict to store callback requests by room name
+_callback_requests: dict[str, dict] = {}
+
 
 class BlackKeyXAdvisor(Agent):
     """BlackKeyX AI Investment Advisor for investor qualification."""
@@ -62,7 +65,12 @@ Conversation guidelines:
 
 Handling outbound call scenarios:
 - If they say it's the WRONG PERSON: Apologize politely, ask if they can connect you with {name} or if there's a better number to reach them. If not possible, thank them and end the call gracefully.
-- If they say it's a BAD TIME: Acknowledge their busy schedule, ask when would be a better time to call back, and offer to have the team reach out at their preferred time. Then end the call politely.
+- If they say it's a BAD TIME or they're BUSY:
+  1. Acknowledge their busy schedule politely (e.g., "I completely understand, I know you're busy")
+  2. Ask when would be a good time to call back (e.g., "When would be a better time for us to reconnect?")
+  3. Wait for them to give you a specific time (e.g., "Tuesday at 2pm", "tomorrow morning", "next week")
+  4. Once they give you a time, use the request_callback tool with their preferred time
+  5. The tool will confirm the callback and end the call automatically
 - If they seem hesitant: Briefly explain that they expressed interest through our platform. Don't be pushy - respect their decision if they decline.
 - If they want to proceed: Transition naturally into the qualification conversation.
 
@@ -98,6 +106,46 @@ Don't use bullet points or lists in your responses - speak conversationally.
         # In production, this would trigger a warm transfer
         # For now, just end the call and flag for human follow-up
         return "Transfer requested - flagged for human callback"
+
+    @function_tool()
+    async def request_callback(
+        self,
+        ctx: RunContext,
+        callback_datetime: str,
+        callback_notes: str = "",
+    ) -> str:
+        """
+        Called when the user indicates they're busy and wants a callback at a specific time.
+
+        Args:
+            callback_datetime: The preferred callback date/time in natural language
+                              (e.g., "Tuesday at 2pm", "tomorrow morning", "next week")
+            callback_notes: Optional notes about the callback (e.g., reason for rescheduling,
+                           best way to reach them)
+        """
+        # Store callback info for session completion
+        job_ctx = get_job_context()
+        if job_ctx:
+            _callback_requests[job_ctx.room.name] = {
+                "callback_datetime": callback_datetime,
+                "callback_notes": callback_notes,
+            }
+
+        # Generate confirmation message
+        await ctx.session.generate_reply(
+            instructions=f"""Confirm the callback time with the investor.
+They requested: {callback_datetime}.
+Thank them warmly for their time and let them know the BlackKeyX team will
+reach out at their preferred time. Keep it brief and friendly."""
+        )
+
+        # End the call after confirmation
+        if job_ctx:
+            await job_ctx.api.room.delete_room(
+                api.DeleteRoomRequest(room=job_ctx.room.name)
+            )
+
+        return f"Callback scheduled for {callback_datetime}"
 
 
 server = AgentServer()
@@ -151,7 +199,13 @@ async def blackkeyx_agent(ctx: agents.JobContext):
                 "transcript": transcript,
                 "history": items,
             }
-        
+
+            # Add callback info if present
+            callback_info = _callback_requests.pop(ctx.room.name, None)
+            if callback_info:
+                payload["callback_requested"] = True
+                payload["callback_datetime"] = callback_info["callback_datetime"]
+                payload["callback_notes"] = callback_info.get("callback_notes", "")
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
