@@ -103,45 +103,7 @@ Don't use bullet points or lists in your responses - speak conversationally.
 server = AgentServer()
 
 
-async def on_session_end(ctx: agents.JobContext) -> None:
-    """Called when session ends - save transcript to backend."""
-    try:
-        report = ctx.make_session_report()
-        report_dict = report.to_dict()
-
-        # Extract transcript from conversation history
-        transcript_parts = []
-        for item in report_dict.get("history", []):
-            role = item.get("role", "unknown")
-            content = item.get("content", "")
-            if content:
-                transcript_parts.append(f"{role}: {content}")
-
-        transcript = "\n".join(transcript_parts)
-
-        # Calculate duration from report or estimate
-        duration = report_dict.get("duration", 0)
-
-        # Send to backend
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{BACKEND_URL}/api/v1/voice/session-complete",
-                json={
-                    "room_name": ctx.room.name,
-                    "transcript": transcript,
-                    "duration": int(duration),
-                },
-                timeout=10.0,
-            )
-            if response.status_code == 200:
-                print(f"Transcript saved for room: {ctx.room.name}")
-            else:
-                print(f"Failed to save transcript: {response.status_code}")
-    except Exception as e:
-        print(f"Error in on_session_end: {e}")
-
-
-@server.rtc_session(agent_name="blackkeyx-advisor", on_session_end=on_session_end)
+@server.rtc_session(agent_name="blackkeyx-advisor")
 async def blackkeyx_agent(ctx: agents.JobContext):
     """Main entrypoint for the BlackKeyX voice agent."""
 
@@ -163,6 +125,49 @@ async def blackkeyx_agent(ctx: agents.JobContext):
         vad=silero.VAD.load(),
         turn_detection=MultilingualModel(),
     )
+
+    def build_transcript(items: list) -> str:
+        """Extract text transcript from chat history items."""
+        parts = []
+        for item in items:
+            if item.get("type") != "message":
+                continue
+            role = item.get("role", "unknown")
+            content_list = item.get("content", [])
+            text_parts = [c for c in content_list if isinstance(c, str)]
+            if text_parts:
+                parts.append(f"{role}: {' '.join(text_parts)}")
+        return "\n".join(parts)
+
+    async def send_transcript():
+        """Save transcript when session ends."""
+        try:
+            history = session.history.to_dict()
+            items = history.get("items", [])
+            transcript = build_transcript(items)
+
+            payload = {
+                "room_name": ctx.room.name,
+                "transcript": transcript,
+                "history": items,
+            }
+        
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{BACKEND_URL}/api/v1/voice/session-complete",
+                    json=payload,
+                    timeout=10.0,
+                )
+                if response.status_code == 200:
+                    print(f"Transcript saved for room: {ctx.room.name}")
+                else:
+                    print(f"Failed to save transcript: {response.status_code}")
+                    print(f"Response body: {response.text}")
+        except Exception as e:
+            print(f"Error saving transcript: {e}")
+
+    ctx.add_shutdown_callback(send_transcript)
 
     await session.start(
         room=ctx.room,
