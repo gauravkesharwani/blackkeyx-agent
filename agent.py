@@ -35,7 +35,7 @@ class BlackKeyXAdvisor(Agent):
         capital = self.investor_context.get("capital_available", "Unknown")
         timeline = self.investor_context.get("timeline", "Unknown")
 
-        instructions = f"""You are Sarah, an AI Investment Advisor at BlackKeyX. Your persona combines:
+        instructions = f"""You are Sarah, an AI Investment Advisor at Black Key Exchange. Your persona combines:
 - Financial sophistication of a top-tier investment banker
 - Conversational warmth of a trusted financial advisor
 - Professional yet personable tone
@@ -84,7 +84,7 @@ Don't use bullet points or lists in your responses - speak conversationally.
         """Called when the conversation is complete or the user wants to end the call."""
         # Generate a farewell message
         await ctx.session.generate_reply(
-            instructions="Thank the investor warmly for their time. Summarize the key preferences you learned (markets, property types, strategy). Let them know a BlackKeyX team member will follow up within 24 hours with deals that match their criteria."
+            instructions="Thank the investor warmly for their time. Summarize the key preferences you learned (markets, property types, strategy). Let them know a Black Key Exchange team member will follow up within 24 hours with deals that match their criteria."
         )
 
         # Delete room to end the call
@@ -100,7 +100,7 @@ Don't use bullet points or lists in your responses - speak conversationally.
     async def transfer_to_human(self, ctx: RunContext) -> str:
         """Called when the investor requests to speak with a human representative."""
         await ctx.session.generate_reply(
-            instructions="Let the investor know you'll connect them with a BlackKeyX representative. Thank them for their patience."
+            instructions="Let the investor know you'll connect them with a   representative. Thank them for their patience."
         )
 
         # In production, this would trigger a warm transfer
@@ -135,7 +135,7 @@ Don't use bullet points or lists in your responses - speak conversationally.
         await ctx.session.generate_reply(
             instructions=f"""Confirm the callback time with the investor.
 They requested: {callback_datetime}.
-Thank them warmly for their time and let them know the BlackKeyX team will
+Thank them warmly for their time and let them know the Black Key Exchange team will
 reach out at their preferred time. Keep it brief and friendly."""
         )
 
@@ -245,7 +245,7 @@ async def blackkeyx_agent(ctx: agents.JobContext):
     if is_outbound:
         # For outbound calls: introduce, confirm identity, ask permission
         await session.generate_reply(
-            instructions=f"""Introduce yourself warmly as Sarah calling from BlackKeyX.
+            instructions=f"""Introduce yourself warmly as Sarah calling from Black Key Exchange.
 Confirm you're speaking with {investor_name} by asking if this is them.
 Then politely ask if they have a few minutes to discuss commercial real estate investment opportunities.
 Keep it brief and natural - you're making a phone call, not reading a script."""
@@ -253,7 +253,7 @@ Keep it brief and natural - you're making a phone call, not reading a script."""
     else:
         # For inbound calls: greet and ask how to help
         await session.generate_reply(
-            instructions="Greet the caller warmly. Introduce yourself as Sarah from BlackKeyX. Ask how you can help them today with their commercial real estate investment goals."
+            instructions="Greet the caller warmly. Introduce yourself as Sarah from Black Key Exchange. Ask how you can help them today with their commercial real estate investment goals."
         )
 
 
