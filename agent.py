@@ -13,7 +13,7 @@ import os
 from livekit import agents, api, rtc
 from livekit.agents import AgentServer, AgentSession, Agent, room_io, get_job_context, RunContext
 from livekit.agents.llm import function_tool
-from livekit.plugins import noise_cancellation, silero
+from livekit.plugins import noise_cancellation, openai
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 load_dotenv(".env.local")
@@ -167,11 +167,14 @@ async def blackkeyx_agent(ctx: agents.JobContext):
 
     # Create session with STT-LLM-TTS pipeline via LiveKit Inference
     session = AgentSession(
-        stt="assemblyai/universal-streaming:en",
-        llm="openai/gpt-4.1-mini",
-        tts="cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
-        vad=silero.VAD.load(),
-        turn_detection=MultilingualModel(),
+        # stt="assemblyai/universal-streaming:en",
+        # llm="openai/gpt-4.1-mini",
+        # tts="cartesia/sonic-3:9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+        # vad=silero.VAD.load(),
+        # turn_detection=MultilingualModel(),
+
+
+        llm=openai.realtime.RealtimeModel()
     )
 
     def build_transcript(items: list) -> str:
