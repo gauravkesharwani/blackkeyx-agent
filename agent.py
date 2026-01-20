@@ -64,7 +64,14 @@ Conversation guidelines:
 - End by explaining that a team member will follow up with matching deals
 
 Handling outbound call scenarios:
+IMPORTANT - Follow this exact call flow for outbound calls:
+1. First, you will introduce yourself and ask if you're speaking with {name}
+2. Wait for their response to confirm identity
+3. If they CONFIRM they are {name}: Ask "Is this a good time to talk?" or similar
+4. Wait for their response about timing before proceeding with qualification questions
+
 - If they say it's the WRONG PERSON: Apologize politely, ask if they can connect you with {name} or if there's a better number to reach them. If not possible, thank them and end the call gracefully.
+- If they CONFIRM their identity: Ask if this is a good time to talk before proceeding.
 - If they say it's a BAD TIME or they're BUSY:
   1. Acknowledge their busy schedule politely (e.g., "I completely understand, I know you're busy")
   2. Ask when would be a good time to call back (e.g., "When would be a better time for us to reconnect?")
@@ -246,12 +253,12 @@ async def blackkeyx_agent(ctx: agents.JobContext):
     investor_name = investor_context.get("name", "there")
 
     if is_outbound:
-        # For outbound calls: introduce, confirm identity, ask permission
+        # For outbound calls: introduce and confirm identity first (timing question comes after confirmation)
         await session.generate_reply(
             instructions=f"""Introduce yourself warmly as Sarah calling from Black Key Exchange.
-Confirm you're speaking with {investor_name} by asking if this is them.
-Then politely ask if they have a few minutes to discuss commercial real estate investment opportunities.
-Keep it brief and natural - you're making a phone call, not reading a script."""
+Ask if you're speaking with {investor_name}. Wait for their confirmation before asking anything else.
+Keep it brief and natural - just introduce yourself and confirm their identity.
+Do NOT ask about timing yet - wait for them to confirm they are {investor_name} first."""
         )
     else:
         # For inbound calls: greet and ask how to help
