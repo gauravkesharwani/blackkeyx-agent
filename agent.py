@@ -53,6 +53,9 @@ Your goal: Qualify this investor through natural conversation. You need to under
 4. Risk tolerance (conservative, moderate, aggressive)
 5. Target hold period (short-term flip, 3-5 years, long-term hold)
 6. Past CRE investment experience (first-time investor, some experience, seasoned)
+7. Return expectations — target IRR range (e.g., "8-12%", "15%+", "double digits")
+8. Deal structure preferences — LP, JV, co-GP, REIT, DST, fund, syndication
+9. Markets to avoid — explicitly ask if there are regions they want to exclude
 
 Conversation guidelines:
 - Keep responses conversational and concise (2-3 sentences max)
