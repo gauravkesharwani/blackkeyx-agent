@@ -6,6 +6,8 @@ Handles both inbound and outbound calls to qualify CRE investors.
 """
 
 from dotenv import load_dotenv
+import hashlib
+import hmac as hmac_module
 import httpx
 import json
 import os
@@ -19,9 +21,16 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 load_dotenv(".env.local")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+AGENT_CALLBACK_SECRET = os.getenv("AGENT_CALLBACK_SECRET", "changeme-agent-secret")
 
 # Module-level dict to store callback requests by room name
 _callback_requests: dict[str, dict] = {}
+
+
+def sign_payload(body: bytes, secret: str) -> str:
+    """Create HMAC-SHA256 signature for agent callback requests."""
+    key = hashlib.sha256(secret.encode()).digest()
+    return hmac_module.new(key, body, hashlib.sha256).hexdigest()
 
 
 class BlackKeyXAdvisor(Agent):
@@ -221,10 +230,17 @@ async def blackkeyx_agent(ctx: agents.JobContext):
                 payload["callback_datetime"] = callback_info["callback_datetime"]
                 payload["callback_notes"] = callback_info.get("callback_notes", "")
 
+            body_bytes = json.dumps(payload).encode("utf-8")
+            signature = sign_payload(body_bytes, AGENT_CALLBACK_SECRET)
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{BACKEND_URL}/api/v1/voice/session-complete",
-                    json=payload,
+                    content=body_bytes,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Agent-Signature": signature,
+                    },
                     timeout=10.0,
                 )
                 if response.status_code == 200:
