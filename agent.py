@@ -18,6 +18,8 @@ from livekit.agents.llm import function_tool
 from livekit.plugins import noise_cancellation, openai
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
+from livekit.plugins import ultravox
+
 load_dotenv(".env.local")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
@@ -44,7 +46,7 @@ class BlackKeyXAdvisor(Agent):
         capital = self.investor_context.get("capital_available", "Unknown")
         timeline = self.investor_context.get("timeline", "Unknown")
 
-        instructions = f"""You are Sarah, an AI Investment Advisor at Black Key Exchange. Your persona combines:
+        instructions = f"""You are Alex, an AI Investment Advisor at Black Key Exchange. Your persona combines:
 - Financial sophistication of a top-tier investment banker
 - Conversational warmth of a trusted financial advisor
 - Professional yet personable tone
@@ -194,7 +196,8 @@ async def blackkeyx_agent(ctx: agents.JobContext):
         # turn_detection=MultilingualModel(),
 
 
-        llm=openai.realtime.RealtimeModel()
+        # llm=openai.realtime.RealtimeModel(model="gpt-realtime-mini")
+        llm=ultravox.realtime.RealtimeModel()
     )
 
     def build_transcript(items: list) -> str:
@@ -275,15 +278,15 @@ async def blackkeyx_agent(ctx: agents.JobContext):
     if is_outbound:
         # For outbound calls: introduce and confirm identity first (timing question comes after confirmation)
         await session.generate_reply(
-            instructions=f"""Introduce yourself warmly as Sarah calling from Black Key Exchange.
-Ask if you're speaking with {investor_name}. Wait for their confirmation before asking anything else.
-Keep it brief and natural - just introduce yourself and confirm their identity.
+            instructions=f"""Say "Hi, this is Alex calling from Black Key Exchange. Am I speaking with {investor_name}?"
+Do NOT greet them by name before introducing yourself — you don't know who picked up yet.
+Wait for their confirmation before asking anything else.
 Do NOT ask about timing yet - wait for them to confirm they are {investor_name} first."""
         )
     else:
         # For inbound calls: greet and ask how to help
         await session.generate_reply(
-            instructions="Greet the caller warmly. Introduce yourself as Sarah from Black Key Exchange. Ask how you can help them today with their commercial real estate investment goals."
+            instructions="Greet the caller warmly. Introduce yourself as Alex from Black Key Exchange. Ask how you can help them today with their commercial real estate investment goals."
         )
 
 

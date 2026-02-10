@@ -227,7 +227,7 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "livekit" },
-    { name = "livekit-agents", extra = ["openai", "silero", "turn-detector"] },
+    { name = "livekit-agents", extra = ["openai", "silero", "turn-detector", "ultravox"] },
     { name = "livekit-plugins-noise-cancellation" },
     { name = "python-dotenv" },
 ]
@@ -242,7 +242,7 @@ dev = [
 requires-dist = [
     { name = "httpx" },
     { name = "livekit", specifier = "~=1.0" },
-    { name = "livekit-agents", extras = ["silero", "turn-detector", "openai"], specifier = "~=1.3" },
+    { name = "livekit-agents", extras = ["silero", "turn-detector", "openai", "ultravox"], specifier = "~=1.3" },
     { name = "livekit-plugins-noise-cancellation", specifier = "~=0.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "python-dotenv" },
@@ -1008,6 +1008,9 @@ silero = [
 turn-detector = [
     { name = "livekit-plugins-turn-detector" },
 ]
+ultravox = [
+    { name = "livekit-plugins-ultravox" },
+]
 
 [[package]]
 name = "livekit-api"
@@ -1113,6 +1116,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f0/6a/4029b3aadad86bffefceba43f46ba8eb0267aee65dbf5518a928a4928d9d/livekit_plugins_turn_detector-1.3.11.tar.gz", hash = "sha256:fc1c07d4e209e7e980f31a8441d3452cf330268fdff1a840843ce7d538f79f0e", size = 8666, upload-time = "2026-01-14T18:46:08.351Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/27/70/59293b81a83dea062a2f14726d2f59ce7dfea7bd22fa1ed096990cf2e2b5/livekit_plugins_turn_detector-1.3.11-py3-none-any.whl", hash = "sha256:810ab55c41031730cb9686148959e00fefb1b8b48ed896e1754516fede99c1ef", size = 10314, upload-time = "2026-01-14T18:46:07.54Z" },
+]
+
+[[package]]
+name = "livekit-plugins-ultravox"
+version = "1.3.11"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "livekit-agents", extra = ["codecs"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6a/e8/c7c465f83fb9876a81d7084caa93a87be31c7b5d803cc1b9de4085b3cb82/livekit_plugins_ultravox-1.3.11.tar.gz", hash = "sha256:814ffab0dc41e438574c4ed56fbcc8ec257e20f5db3bbb601c91da19f7443c13", size = 18647, upload-time = "2026-01-14T18:46:09.72Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/03/e2be2fda06c3834a2758b6e95b7fbd2bec4867374da10c85c5c684a9fae3/livekit_plugins_ultravox-1.3.11-py3-none-any.whl", hash = "sha256:289b19b1d810dc31b62762e99845046b85f3a9352c51090763cec3b26474aa71", size = 20367, upload-time = "2026-01-14T18:46:08.913Z" },
 ]
 
 [[package]]
