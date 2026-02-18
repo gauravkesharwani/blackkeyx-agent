@@ -1,2 +1,4 @@
 .env.local
-__pycache__/agent.cpython-312.pyc
+__pycache__/
+*.pyc
+.DS_Store
