@@ -128,7 +128,8 @@ AFTER THEY RESPOND TO YOUR INTRODUCTION:
 - If they CONFIRM but say it is a BAD TIME:
   1. Acknowledge politely (e.g., "I completely understand, I know you're busy")
   2. Ask when would be a good time to call back
-  3. Once they give a time, use the request_callback tool with their preferred time
+  3. Confirm their timezone (e.g., "And just to make sure we call at the right time — what timezone are you in?")
+  4. Once they give a time and timezone, use the request_callback tool with their preferred time and timezone
 - If they seem hesitant: Briefly mention they expressed interest through your platform. Do not be pushy."""
         else:
             if name:
@@ -232,6 +233,7 @@ Do not use bullet points or lists in your responses — speak conversationally."
         ctx: RunContext,
         callback_datetime: str,
         callback_notes: str = "",
+        investor_timezone: str = "",
     ) -> str:
         """
         Called when the user indicates they're busy and wants a callback at a specific time.
@@ -241,6 +243,9 @@ Do not use bullet points or lists in your responses — speak conversationally."
                               (e.g., "Tuesday at 2pm", "tomorrow morning", "next week")
             callback_notes: Optional notes about the callback (e.g., reason for rescheduling,
                            best way to reach them)
+            investor_timezone: The investor's timezone as confirmed during the call
+                              (e.g., "Eastern", "Pacific", "Central", "Mountain").
+                              Ask the investor to confirm their timezone before calling this tool.
         """
         # Store callback info for session completion
         job_ctx = get_job_context()
@@ -248,6 +253,7 @@ Do not use bullet points or lists in your responses — speak conversationally."
             _callback_requests[job_ctx.room.name] = {
                 "callback_datetime": callback_datetime,
                 "callback_notes": callback_notes,
+                "investor_timezone": investor_timezone,
             }
 
         # Generate confirmation message
@@ -329,6 +335,7 @@ async def blackkeyx_agent(ctx: agents.JobContext):
                 payload["callback_requested"] = True
                 payload["callback_datetime"] = callback_info["callback_datetime"]
                 payload["callback_notes"] = callback_info.get("callback_notes", "")
+                payload["investor_timezone"] = callback_info.get("investor_timezone", "")
 
             body_bytes = json.dumps(payload).encode("utf-8")
             signature = sign_payload(body_bytes, AGENT_CALLBACK_SECRET)
