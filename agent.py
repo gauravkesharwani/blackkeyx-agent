@@ -24,9 +24,47 @@ load_dotenv(".env.local")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 AGENT_CALLBACK_SECRET = os.getenv("AGENT_CALLBACK_SECRET", "changeme-agent-secret")
+VOICEMAIL_LEAVE_MESSAGE = os.getenv("VOICEMAIL_LEAVE_MESSAGE", "false").lower() == "true"
 
 # Module-level dict to store callback requests by room name
 _callback_requests: dict[str, dict] = {}
+
+# Module-level dict to store voicemail detection results by room name
+_voicemail_results: dict[str, dict] = {}
+
+
+class VoicemailDetector:
+    """Detects voicemail greetings from transcribed speech."""
+
+    VOICEMAIL_PHRASES = [
+        "leave a message",
+        "after the tone",
+        "after the beep",
+        "not available",
+        "voicemail",
+        "press 1",
+        "mailbox",
+        "record your message",
+        "at the tone",
+        "please leave",
+        "unavailable",
+        "cannot take your call",
+        "mailbox is full",
+        "is not available",
+        "currently unavailable",
+        "reached the voicemail",
+    ]
+
+    @staticmethod
+    def analyze_transcript(text: str) -> tuple[bool, float]:
+        """Returns (is_voicemail, confidence)."""
+        text_lower = text.lower()
+        matches = sum(1 for p in VoicemailDetector.VOICEMAIL_PHRASES if p in text_lower)
+        if matches >= 2:
+            return True, min(0.95, 0.5 + matches * 0.15)
+        if matches == 1:
+            return True, 0.6
+        return False, 0.0
 
 
 def sign_payload(body: bytes, secret: str) -> str:
@@ -176,7 +214,9 @@ IMPORTANT RULES FOR INBOUND CALLS:
 
 5. BREVITY: Keep every response to 1-2 short sentences. A brief acknowledgment plus one question is ideal. Avoid filler sentences. Do not use bullet points or lists.
 
-6. NO SPECIFIC FINANCIAL ADVICE: You are a qualifier, not a financial advisor. NEVER offer to evaluate specific properties or deals. NEVER guarantee or imply returns. If asked about a specific building, address, or investment opportunity, explain that you cannot provide specific investment advice and that a team member will help with evaluating specific deals."""
+6. NO SPECIFIC FINANCIAL ADVICE: You are a qualifier, not a financial advisor. NEVER offer to evaluate specific properties or deals. NEVER guarantee or imply returns. If asked about a specific building, address, or investment opportunity, explain that you cannot provide specific investment advice and that a team member will help with evaluating specific deals.
+
+7. VOICEMAIL DETECTION: If you detect that you've reached a voicemail or answering machine (you hear phrases like "leave a message", "after the beep", "not available", "voicemail", a long pre-recorded greeting, or a beep tone), IMMEDIATELY call the handle_voicemail tool. Do NOT try to have a conversation with a voicemail system. Do NOT introduce yourself to a voicemail unless the handle_voicemail tool handles it."""
 
         # --- Conversation guidelines (shared) ---
         guidelines = """Conversation guidelines:
@@ -226,6 +266,49 @@ Do not use bullet points or lists in your responses — speak conversationally."
     #     # In production, this would trigger a warm transfer
     #     # For now, just end the call and flag for human follow-up
     #     return "Transfer requested - flagged for human callback"
+
+    @function_tool()
+    async def handle_voicemail(self, ctx: RunContext) -> str:
+        """Called when you detect that you've reached a voicemail or answering machine instead of a live person. Signs include hearing phrases like 'leave a message', 'after the beep', 'not available', 'voicemail', or a long uninterrupted pre-recorded greeting."""
+        job_ctx = get_job_context()
+        room_name = job_ctx.room.name if job_ctx else "unknown"
+
+        # Analyze the conversation so far for confidence scoring
+        history = ctx.session.history.to_dict()
+        items = history.get("items", [])
+        all_text = ""
+        for item in items:
+            if item.get("type") != "message" or item.get("role") != "user":
+                continue
+            content_list = item.get("content", [])
+            all_text += " ".join(c for c in content_list if isinstance(c, str)) + " "
+
+        is_vm, confidence = VoicemailDetector.analyze_transcript(all_text)
+        # If the agent called this tool, we trust it even if phrase matching is low
+        if not is_vm:
+            confidence = max(confidence, 0.7)
+
+        message_left = False
+        if VOICEMAIL_LEAVE_MESSAGE:
+            await ctx.session.generate_reply(
+                instructions="You've reached a voicemail. Leave a brief professional message: 'Hi, this is Alex from Black Key Exchange. We had an opportunity to discuss some commercial real estate investment options. Please call us back at your convenience. Thank you.'"
+            )
+            message_left = True
+
+        # Store voicemail result
+        _voicemail_results[room_name] = {
+            "voicemail_detected": True,
+            "voicemail_confidence": confidence,
+            "voicemail_message_left": message_left,
+        }
+
+        # End the call
+        if job_ctx:
+            await job_ctx.api.room.delete_room(
+                api.DeleteRoomRequest(room=job_ctx.room.name)
+            )
+
+        return "Voicemail detected, call ended"
 
     @function_tool()
     async def request_callback(
@@ -328,6 +411,13 @@ async def blackkeyx_agent(ctx: agents.JobContext):
                 "transcript": transcript,
                 "history": items,
             }
+
+            # Add voicemail detection info if present
+            voicemail_info = _voicemail_results.pop(ctx.room.name, None)
+            if voicemail_info:
+                payload["voicemail_detected"] = voicemail_info["voicemail_detected"]
+                payload["voicemail_confidence"] = voicemail_info["voicemail_confidence"]
+                payload["voicemail_message_left"] = voicemail_info["voicemail_message_left"]
 
             # Add callback info if present
             callback_info = _callback_requests.pop(ctx.room.name, None)
