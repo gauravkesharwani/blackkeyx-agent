@@ -163,11 +163,7 @@ YOUR VERY FIRST MESSAGE MUST follow this exact format:
 AFTER THEY RESPOND TO YOUR INTRODUCTION:
 - If they CONFIRM they are {investor_name}: Ask "Is this a good time to talk?" or similar. Wait for their answer before starting qualification.
 - If they say it is the WRONG PERSON: You MUST apologize sincerely first. Say something like "I'm so sorry for the inconvenience" or "I apologize for the mix-up." Then ask if they can connect you with {investor_name} or if there is a better number to reach them. If not possible, thank them and end the call gracefully. Do NOT proceed with qualification questions.
-- If they CONFIRM but say it is a BAD TIME:
-  1. Acknowledge politely (e.g., "I completely understand, I know you're busy")
-  2. Ask when would be a good time to call back
-  3. Confirm their timezone (e.g., "And just to make sure we call at the right time — what timezone are you in?")
-  4. Once they give a time and timezone, use the request_callback tool with their preferred time and timezone
+- If they CONFIRM but say it is a BAD TIME: Follow the CALLBACK REQUESTS rule (Rule 8) — acknowledge, ask for a preferred time, confirm timezone, and use the request_callback tool.
 - If they seem hesitant: Briefly mention they expressed interest through your platform. Do not be pushy."""
         else:
             if name:
@@ -216,7 +212,14 @@ IMPORTANT RULES FOR INBOUND CALLS:
 
 6. NO SPECIFIC FINANCIAL ADVICE: You are a qualifier, not a financial advisor. NEVER offer to evaluate specific properties or deals. NEVER guarantee or imply returns. If asked about a specific building, address, or investment opportunity, explain that you cannot provide specific investment advice and that a team member will help with evaluating specific deals.
 
-7. VOICEMAIL DETECTION: If you detect that you've reached a voicemail or answering machine (you hear phrases like "leave a message", "after the beep", "not available", "voicemail", a long pre-recorded greeting, or a beep tone), IMMEDIATELY call the handle_voicemail tool. Do NOT try to have a conversation with a voicemail system. Do NOT introduce yourself to a voicemail unless the handle_voicemail tool handles it."""
+7. VOICEMAIL DETECTION: If you detect that you've reached a voicemail or answering machine (you hear phrases like "leave a message", "after the beep", "not available", "voicemail", a long pre-recorded greeting, or a beep tone), IMMEDIATELY call the handle_voicemail tool. Do NOT try to have a conversation with a voicemail system. Do NOT introduce yourself to a voicemail unless the handle_voicemail tool handles it.
+
+8. CALLBACK REQUESTS: If the investor says they are busy, asks you to call back later, or requests a callback at ANY point during the conversation (e.g., "can you call me back tomorrow?", "I'm in a meeting", "call me at 3pm", "not a good time"), you MUST:
+   a. Acknowledge politely (e.g., "Of course, I completely understand")
+   b. If they haven't given a specific time, ask when would be a good time to call back
+   c. Confirm their timezone (e.g., "And just to confirm — what timezone are you in?")
+   d. Once you have both the time and timezone, call the request_callback tool immediately
+   Do NOT continue with qualification questions after a callback is requested. Handle the callback and end the call."""
 
         # --- Conversation guidelines (shared) ---
         guidelines = """Conversation guidelines:
