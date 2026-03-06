@@ -15,9 +15,11 @@ from agent import BlackKeyXAdvisor  # noqa: E402, F401
 TOOL_MOCKS = {
     "end_call": lambda: "Call ended successfully",
     # "transfer_to_human": lambda: "Transfer requested - flagged for human callback",
-    "request_callback": lambda callback_datetime, callback_notes="": (
+    "request_callback": lambda callback_datetime, callback_notes="", investor_timezone="": (
         f"Callback scheduled for {callback_datetime}"
     ),
+    "handle_voicemail": lambda: "Voicemail detected, call ended",
+    "save_caller_name": lambda name: f"Caller name recorded: {name}",
 }
 
 
