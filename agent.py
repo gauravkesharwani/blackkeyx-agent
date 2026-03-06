@@ -32,6 +32,9 @@ _callback_requests: dict[str, dict] = {}
 # Module-level dict to store voicemail detection results by room name
 _voicemail_results: dict[str, dict] = {}
 
+# Module-level dict to store inbound caller info (name) by room name
+_inbound_caller_info: dict[str, dict] = {}
+
 
 class VoicemailDetector:
     """Detects voicemail greetings from transcribed speech."""
@@ -166,20 +169,43 @@ AFTER THEY RESPOND TO YOUR INTRODUCTION:
 - If they CONFIRM but say it is a BAD TIME: Follow the CALLBACK REQUESTS rule (Rule 8) — acknowledge, ask for a preferred time, confirm timezone, and use the request_callback tool.
 - If they seem hesitant: Briefly mention they expressed interest through your platform. Do not be pushy."""
         else:
-            if name:
-                caller_ref = f"You're speaking with {name} who expressed interest in CRE investments through our platform. Use their name naturally in your responses."
-                greeting_instruction = "Greet callers warmly, introduce yourself as Alex from Black Key Exchange, and help them with their commercial real estate investment goals."
+            qualification_bucket = self.investor_context.get("qualification_bucket", "")
+            is_returning = bool(name and name not in ("", "Inbound Caller"))
+
+            if is_returning:
+                known_prefs = []
+                if capital:
+                    known_prefs.append(f"capital: {capital}")
+                if timeline:
+                    known_prefs.append(f"timeline: {timeline}")
+                if self.investor_context.get("investment_preferences"):
+                    known_prefs.append(f"interests: {', '.join(self.investor_context['investment_preferences'])}")
+                if self.investor_context.get("risk_tolerance"):
+                    known_prefs.append(f"risk tolerance: {self.investor_context['risk_tolerance']}")
+                prefs_summary = f" Known preferences — {'; '.join(known_prefs)}." if known_prefs else ""
+                caller_ref = (
+                    f"You're speaking with a returning investor named {name}.{prefs_summary} "
+                    f"Greet them by name. You already know who they are — do NOT ask for their name again."
+                )
+                if qualification_bucket in ("highly_qualified", "qualified"):
+                    caller_ref += f" They are already marked as {qualification_bucket.replace('_', ' ')}. Focus on next steps rather than re-qualifying from scratch."
             else:
-                caller_ref = "The caller is interested in CRE investments."
-                greeting_instruction = "Greet callers warmly and help them with their commercial real estate investment goals. Do not introduce yourself by name in the first message."
+                caller_ref = "The caller is a new inbound lead interested in CRE investments."
+
+            name_rule = (
+                "- You already know this caller's name — do NOT ask for it again."
+                if is_returning else
+                "- Early in the conversation, ask for the caller's name naturally (e.g. \"May I ask your name?\"). As soon as they tell you their name, call the save_caller_name tool immediately, then go straight into qualification questions. Do NOT ask generic questions like 'What brings you here?' or 'How can I help you?'."
+            )
 
             call_flow = f"""CALL TYPE: INBOUND
 {caller_ref}
 
-{greeting_instruction}
+{"YOUR VERY FIRST MESSAGE MUST: Introduce yourself as Alex from Black Key Exchange, then ask for the caller's name (e.g. 'Welcome to Black Key Exchange, this is Alex. May I know who I have the pleasure of speaking with today?'). Do NOT proceed with any qualification questions until you have their name. As soon as they tell you their name, call the save_caller_name tool immediately, then jump straight into the first qualification question (e.g. preferred geographic markets or property types). Do NOT ask 'What brings you here?' or 'How can I help you?' or any generic open-ended question — go directly into qualification." if not is_returning else "Greet the caller warmly by name and introduce yourself as Alex from Black Key Exchange."}
 
 IMPORTANT RULES FOR INBOUND CALLS:
 - Do NOT attempt to confirm the caller's identity. Do NOT ask "Am I speaking with...?" or "Is this [name]?" — they called you, so there is no need to verify who they are.
+{name_rule}
 - Listen actively and show genuine empathy about any experiences they share.
 - If they mention a bad experience, acknowledge it with genuine empathy and ask a follow-up about it or naturally transition to understanding their risk tolerance or markets to avoid. Do NOT change the subject to identity confirmation or anything unrelated to what they just shared.
 - Do NOT offer to evaluate specific deals or properties. You are a qualifier, not a financial advisor. If asked about a specific deal, explain that a team member can help with specific opportunities."""
@@ -314,6 +340,20 @@ Do not use bullet points or lists in your responses — speak conversationally."
         return "Voicemail detected, call ended"
 
     @function_tool()
+    async def save_caller_name(self, ctx: RunContext, name: str) -> str:
+        """
+        Called as soon as the inbound caller tells you their name.
+        Records their name so it can be saved to the lead profile.
+
+        Args:
+            name: The caller's full name as they stated it.
+        """
+        job_ctx = get_job_context()
+        if job_ctx:
+            _inbound_caller_info[job_ctx.room.name] = {"name": name}
+        return f"Caller name recorded: {name}"
+
+    @function_tool()
     async def request_callback(
         self,
         ctx: RunContext,
@@ -376,6 +416,31 @@ async def blackkeyx_agent(ctx: agents.JobContext):
 
     is_outbound = investor_context.get("outbound", False)
 
+    # For inbound calls, fetch existing investor context from backend by phone
+    if not is_outbound and ctx.room.name.startswith("inbound-"):
+        parts = ctx.room.name.split("_")
+        if len(parts) >= 2 and parts[1].startswith("+"):
+            caller_phone = parts[1]
+            try:
+                body = json.dumps({"phone": caller_phone}).encode("utf-8")
+                signature = sign_payload(body, AGENT_CALLBACK_SECRET)
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        f"{BACKEND_URL}/api/v1/voice/inbound-context",
+                        content=body,
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Agent-Signature": signature,
+                        },
+                        timeout=5.0,
+                    )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("found"):
+                        investor_context.update(data)
+            except Exception as e:
+                print(f"Failed to fetch inbound investor context: {e}")
+
     # Create session with STT-LLM-TTS pipeline via LiveKit Inference
     session = AgentSession(
         # stt="assemblyai/universal-streaming:en",
@@ -414,6 +479,27 @@ async def blackkeyx_agent(ctx: agents.JobContext):
                 "transcript": transcript,
                 "history": items,
             }
+
+            # For inbound calls, extract caller phone from room name and name from tracker
+            if ctx.room.name.startswith("inbound-"):
+                # Parse phone from room name: inbound-_+1234567890_<random>
+                parts = ctx.room.name.split("_")
+                if len(parts) >= 2 and parts[1].startswith("+"):
+                    payload["caller_phone"] = parts[1]
+                else:
+                    # Fallback: SIP participant attributes
+                    for participant in ctx.room.remote_participants.values():
+                        if participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+                            payload["caller_phone"] = (
+                                participant.attributes.get("sip.phoneNumber")
+                                or participant.attributes.get("sip.callFrom")
+                                or participant.identity
+                            )
+                            break
+
+                caller_info = _inbound_caller_info.pop(ctx.room.name, None)
+                if caller_info and caller_info.get("name"):
+                    payload["caller_name"] = caller_info["name"]
 
             # Add voicemail detection info if present
             voicemail_info = _voicemail_results.pop(ctx.room.name, None)
@@ -472,6 +558,12 @@ async def blackkeyx_agent(ctx: agents.JobContext):
     # Get investor name for personalization
     investor_name = investor_context.get("name", "there")
 
+    is_returning = bool(
+        not is_outbound
+        and investor_context.get("name")
+        and investor_context.get("name") not in ("", "Inbound Caller")
+    )
+
     if is_outbound:
         # For outbound calls: introduce and confirm identity first (timing question comes after confirmation)
         await session.generate_reply(
@@ -480,10 +572,16 @@ Do NOT greet them by name before introducing yourself — you don't know who pic
 Wait for their confirmation before asking anything else.
 Do NOT ask about timing yet - wait for them to confirm they are {investor_name} first."""
         )
-    else:
-        # For inbound calls: greet and ask how to help
+    elif is_returning:
+        # For returning inbound callers: greet by name
         await session.generate_reply(
-            instructions="Greet the caller warmly. Introduce yourself as Alex from Black Key Exchange. Ask how you can help them today with their commercial real estate investment goals."
+            instructions=f"Greet {investor_name} warmly by name. Introduce yourself as Alex from Black Key Exchange. Welcome them back and ask how you can help them today."
+        )
+    else:
+        # For first-time inbound callers: introduce yourself and ask for their name
+        await session.generate_reply(
+            instructions="""You MUST say something like: "Welcome to Black Key Exchange! This is Alex. May I know who I have the pleasure of speaking with today?"
+You MUST ask for the caller's name in this first message. Do NOT ask about their investment goals or how you can help yet — just introduce yourself and ask their name. Nothing else."""
         )
 
 
