@@ -34,15 +34,18 @@ async def test_end_call_when_wrapping_up(inbound_session, llm):
 
 
 async def test_request_callback_with_datetime(outbound_session, llm):
-    """request_callback tool is called with callback_datetime argument."""
+    """request_callback tool is called after the investor gives a time and timezone."""
     await outbound_session.run(user_input="Hello?")
     await outbound_session.run(user_input="Yes, this is Sarah.")
     await outbound_session.run(
         user_input="I'm really busy, can you call me back?"
     )
-    result = await outbound_session.run(
+    await outbound_session.run(
         user_input="Tuesday at 2pm would work."
     )
+    # Rule 9 (CALLBACK REQUESTS) requires the agent to confirm timezone before
+    # calling the tool, so the tool call lands on the turn that provides it.
+    result = await outbound_session.run(user_input="Eastern time.")
     result.expect.contains_function_call(name="request_callback")
 
 

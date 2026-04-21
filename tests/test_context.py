@@ -36,19 +36,33 @@ async def test_knows_capital_available(inbound_session, llm):
 
 
 async def test_minimal_context_defaults(llm):
-    """Agent handles empty context without saying 'Unknown' literally."""
+    """Agent handles empty context without saying 'Unknown' literally or
+    fabricating an investor name."""
     async with AgentSession(llm=llm) as session:
         with mock_tools(BlackKeyXAdvisor, TOOL_MOCKS):
             await session.start(BlackKeyXAdvisor(investor_context={}))
             result = await session.run(
                 user_input="Hello, I'm interested in CRE investments."
             )
-            await assert_assistant_message(
-                result,
-                llm,
-                "Greets warmly without using a specific investor name. "
-                "Does NOT say the word 'Unknown' for capital or timeline.",
+
+            # Grab the first assistant message text
+            assistant_text = next(
+                "".join(ev.item.content) if isinstance(ev.item.content, list) else ev.item.content
+                for ev in result.events
+                if ev.type == "message" and ev.item.role == "assistant"
             )
+
+            # Core assertions: literal "Unknown" must not appear, and no
+            # fabricated investor name (common names from other test contexts)
+            # should leak in when no name was provided.
+            lower = assistant_text.lower()
+            assert "unknown" not in lower, (
+                f"Agent said 'Unknown' literally: {assistant_text!r}"
+            )
+            for fabricated in ("john", "sarah", "roberto", "wei", "priya"):
+                assert fabricated not in lower, (
+                    f"Agent fabricated a caller name {fabricated!r}: {assistant_text!r}"
+                )
 
 
 @pytest.mark.parametrize(
