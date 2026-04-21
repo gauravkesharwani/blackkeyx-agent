@@ -71,7 +71,10 @@ async def test_mid_conversation_voicemail_transfer(llm):
 async def test_normal_greeting_does_not_trigger_voicemail(outbound_session, llm):
     """Negative case: Normal human greeting does NOT trigger handle_voicemail."""
     result = await outbound_session.run(user_input="Hello? Who is this?")
-    result.expect.does_not_contain_function_call(name="handle_voicemail")
+    assert not any(
+        ev.type == "function_call" and ev.item.name == "handle_voicemail"
+        for ev in result.events
+    ), "handle_voicemail tool was called on a normal human greeting"
 
 
 async def test_inbound_save_caller_name(llm):
